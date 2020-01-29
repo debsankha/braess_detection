@@ -17,7 +17,7 @@ def run_n_iterations_for_network(network_type, out_file, num_repeat=10):
             G, Gr, I_dict = generate_ieee300_network_with_random_inputs()
         else:
             raise ValueError(f"network_type={network_type} not understood")
-        res = evaluate_rerouting_heuristic_classifier(G, Gr, I_dict, thres=10e-5)
+        res = evaluate_rerouting_heuristic_classifier(G, Gr, I_dict, thres=0)
         # res is a dict of dicts, keys keing node labels. We will store it as a csv
         # we will also lose information of the node labels.
         df = pd.DataFrame([data for node, data in res.items()], index=None)

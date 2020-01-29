@@ -174,7 +174,7 @@ def evaluate_rerouting_heuristic_classifier(G:nx.Graph, Gr:AugmentedGraph, I:Dic
                                                                             maxflow_sink)
     # Now compute flow alignments
     alignments_with_maxflow = flow_alignment_with_edge(G, Gr, maxflow_edge, stflows_dict)
-    aligned, notaligned, cant_say = alignments_with_maxflow
+    aligned, notaligned, cant_say, bridges = alignments_with_maxflow
 
     edge_dist = lambda e1,e2:min(dists[e1[0]][e2[0]], dists[e1[0]][e2[1]], dists[e1[1]][e2[0]], dists[e1[1]][e2[1]])
     return_dict = dict()
@@ -187,9 +187,11 @@ def evaluate_rerouting_heuristic_classifier(G:nx.Graph, Gr:AugmentedGraph, I:Dic
             inner_dict['aligned'] = True
         elif e in notaligned:
             inner_dict['aligned'] = False
+        elif e in bridges:
+            inner_dict['aligned'] = 'bridge'
         else:
             assert e in cant_say
-            inner_dict['aligned'] = None
+            inner_dict['aligned'] = 'cant_say'
         inner_dict['susc'] = susceptibilities_at_maxflow[e]
         inner_dict['dist'] = edge_dist(e, maxflow_edge)
         susc = susceptibilities_at_maxflow[e]
@@ -221,11 +223,13 @@ def flow_alignment_with_edge(G:nx.Graph, Gr:AugmentedGraph, edge: Tuple[object, 
         aligned_edges = set()
         notaligned_edges = set()
         cant_say = {e for e in G.edges() if e != edge}
-        return aligned_edges, notaligned_edges, cant_say
+        raise ValueError("Maxflow edge is a bridge")
+#        return aligned_edges, notaligned_edges, cant_say
 
     aligned_edges = set()
     nonaligned_edges = set()
     cant_say = set()
+    bridges = set()
 
     for e in Gr.edges_arr:
         if set(e) == set(edge):
@@ -236,10 +240,12 @@ def flow_alignment_with_edge(G:nx.Graph, Gr:AugmentedGraph, edge: Tuple[object, 
             aligned_edges.add(e)
         elif alignment == 'not aligned':
             nonaligned_edges.add(e)
+        elif alignment == 'bridge':
+            bridges.add(e)
         else:
             assert alignment == 'cant_say'
             cant_say.add(e)
-    return aligned_edges, nonaligned_edges, cant_say
+    return aligned_edges, nonaligned_edges, cant_say, bridges
 
 
 def is_edge_aligned_rerouting_heuristic(G, edge, e, flows):
@@ -255,7 +261,7 @@ def is_edge_aligned_rerouting_heuristic(G, edge, e, flows):
         t_target,h_target = edge
 
     if is_bridge(G, e):
-        return 'cant_say'
+        return 'bridge'
 
     h, t = e
     # first, determine head and tail
