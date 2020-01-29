@@ -1,4 +1,4 @@
-from . import braess_tools as ab
+from braess_detection import braess_tools as ab
 from flownetpy.tools import FlowDict
 from flownetpy import LinearFlowNetwork
 import networkx as nx

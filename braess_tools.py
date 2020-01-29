@@ -363,3 +363,4 @@ def is_bridge(G, e):
     H = G.copy()
     H.remove_edge(*e)
 
+    return not nx.is_connected(H)
