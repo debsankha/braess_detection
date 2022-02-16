@@ -47,7 +47,7 @@ def generate_random_voronoi_graph_with_random_inputs(num_points=20, src_frac=0.2
     return G, Gr, I_dict
 
 def generate_ieee300_network_with_random_inputs(src_frac=0.25):
-    G = nx.read_gpickle('../data/ieee300/ieee300_unweigted_graph.gpkl')
+    G = nx.read_gpickle('../../data/ieee300/ieee300_unweighted_graph.gpkl')
     Gr = bt.AugmentedGraph(G)
     # randomly choose sources and sinks
     I_dict = assign_random_sources_and_sinks(Gr, frac=src_frac)

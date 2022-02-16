@@ -49,13 +49,13 @@ class VoronoiPlanarGraph():
                 else:
                     cycle = list(reversed(region))
 
-                G.add_cycle(cycle)
+                nx.add_cycle(G, cycle)
                 self.closed_cycles[region_point] = cycle+[cycle[0]] # so, append [2,7,3,2],
                                                             # not [2,7,3]
 
         if with_coords:
             for node in G.nodes():
-                G.node[node]['pos']=tuple(vor.vertices[node])
+                G.nodes[node]['pos']=tuple(vor.vertices[node])
 
         return G
 
@@ -83,7 +83,7 @@ class VoronoiPlanarGraph():
 
         if with_coords:
             for node in H.nodes():
-                H.node[node]['pos']=tuple(vor.points[node])
+                H.nodes[node]['pos']=tuple(vor.points[node])
 
         return H
 

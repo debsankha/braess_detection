@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 from typing import Dict, List, Set, Iterable, Tuple
+import tqdm
 
 
 class AugmentedGraph:
@@ -20,6 +21,7 @@ class AugmentedGraph:
         incidence matrix).
     5. Returns the Laplacian matrix and its Moore-Penrose pseudoinverse, again in the same consistent node order.
     """
+
     def __init__(self, graph, weight_attr=None):
         self.G = graph
         self.weight_attr = weight_attr
@@ -28,26 +30,35 @@ class AugmentedGraph:
         if weight_attr is None:
             self.weight_arr = np.array([1 for i in self.edges_arr])
         else:
-            self.weight_arr = np.array([self.G[u][v][self.weight_attr] for u,v in self.edges_arr])
+            self.weight_arr = np.array(
+                [self.G[u][v][self.weight_attr] for u, v in self.edges_arr]
+            )
 
-        self.nodes2idx = {n:idx for idx,n in enumerate(self.nodes_arr)}
-        self.edges2idx = {e:idx for idx,e in enumerate(self.edges_arr)}
-        self.idx2edges = {idx:e for idx,e in enumerate(self.edges_arr)}
-        self.idx2nodes = {idx:n for idx,n in enumerate(self.nodes_arr)}
+        self.nodes2idx = {n: idx for idx, n in enumerate(self.nodes_arr)}
+        self.edges2idx = {e: idx for idx, e in enumerate(self.edges_arr)}
+        self.idx2edges = {idx: e for idx, e in enumerate(self.edges_arr)}
+        self.idx2nodes = {idx: n for idx, n in enumerate(self.nodes_arr)}
 
         # To understand why this *-1 is necessary, read the docs of nx.incidence_matrix
-        self.M = nx.incidence_matrix(self.G, nodelist=self.nodes_arr, edgelist=self.edges_arr, oriented=True).toarray()*-1
-        self.L = nx.laplacian_matrix(self.G, nodelist=self.nodes_arr, weight=self.weight_attr).toarray()
+        self.M = (
+            nx.incidence_matrix(
+                self.G, nodelist=self.nodes_arr, edgelist=self.edges_arr, oriented=True
+            ).toarray()
+            * -1
+        )
+        self.L = nx.laplacian_matrix(
+            self.G, nodelist=self.nodes_arr, weight=self.weight_attr
+        ).toarray()
         self.Ld = np.linalg.pinv(self.L)
         self.MtLd = np.dot(self.M.T, self.Ld)
 
-    def edge_weight(self, u,v):
+    def edge_weight(self, u, v):
         if self.weight_attr is None:
             return 1
         else:
             return self.G[u][v][self.weight_attr]
 
-    def edge_orientation(self, u,v):
+    def edge_orientation(self, u, v):
         """
         :param u: A node of self
         :param v: A node of self
@@ -56,11 +67,11 @@ class AugmentedGraph:
         """
         if not self.G.has_edge(u, v):
             raise ValueError(f"({u},{v}) is not an edge.")
-        if (u,v) in self.edges_arr:
-            return u,v
+        if (u, v) in self.edges_arr:
+            return u, v
         else:
-            assert (v,u) in self.edges_arr
-            return v,u
+            assert (v, u) in self.edges_arr
+            return v, u
 
     def edges_ordered(self):
         return [self.idx2edges[idx] for idx in range(self.G.number_of_edges())]
@@ -69,7 +80,7 @@ class AugmentedGraph:
         return [self.idx2nodes[idx] for idx in range(self.G.number_of_nodes())]
 
 
-def steady_flows_vector(Gr:AugmentedGraph, inputs:Dict):
+def steady_flows_vector(Gr: AugmentedGraph, inputs: Dict):
     """
     :param Gr: A Graph
     :param inputs: Dict. Inputs at each node.
@@ -80,10 +91,10 @@ def steady_flows_vector(Gr:AugmentedGraph, inputs:Dict):
     of the flow vector is the flow from a to b.
     """
     I = convert_node_keyed_dict_to_arr(Gr, inputs)
-    return Gr.weight_arr*np.dot(Gr.MtLd, I)
+    return Gr.weight_arr * np.dot(Gr.MtLd, I)
 
 
-def steady_flows_dict(Gr:AugmentedGraph, inputs:Dict):
+def steady_flows_dict(Gr: AugmentedGraph, inputs: Dict):
     """
     Just the same as steady_flows_vector, just the return value is a dict instead of a vector.
     The dict keys are the elements of Gr.edges_arr.
@@ -94,21 +105,28 @@ def steady_flows_dict(Gr:AugmentedGraph, inputs:Dict):
     return convert_list_to_edge_keyed_dict(Gr, steady_flows_vector(Gr, inputs))
 
 
-def current_dueto_dipole_at_edge_vector(Gr:AugmentedGraph, src_node, sink_node, current_magnitude = 1):
-    I = {node:0 for node in Gr.nodes_arr}
+def current_dueto_dipole_at_edge_vector(
+    Gr: AugmentedGraph, src_node, sink_node, current_magnitude=1
+):
+    I = {node: 0 for node in Gr.nodes_arr}
     I[src_node] = current_magnitude
     I[sink_node] = -current_magnitude
 
     return steady_flows_vector(Gr, I)
 
 
-def current_dueto_dipole_at_edge_dict(Gr:AugmentedGraph, src_node, sink_node, current_magnitude = 1):
-    curr_vec = current_dueto_dipole_at_edge_vector(Gr, src_node, sink_node, current_magnitude)
+def current_dueto_dipole_at_edge_dict(
+    Gr: AugmentedGraph, src_node, sink_node, current_magnitude=1
+):
+    curr_vec = current_dueto_dipole_at_edge_vector(
+        Gr, src_node, sink_node, current_magnitude
+    )
     return convert_list_to_edge_keyed_dict(Gr, curr_vec)
 
 
-def maxflow_change_on_each_edge_strengthening(Gr: AugmentedGraph, steady_flows_vec: List[float],
-                                              maxflow_src, maxflow_sink):
+def maxflow_change_on_each_edge_strengthening(
+    Gr: AugmentedGraph, steady_flows_vec: List[float], maxflow_src, maxflow_sink
+):
     """
     Let the maxflow be across edge (s,t) from s to t. We will compute
     dF_{st}/dK_{ab}, for all edges (a,b).
@@ -122,10 +140,17 @@ def maxflow_change_on_each_edge_strengthening(Gr: AugmentedGraph, steady_flows_v
     :param maxflow_src/maxflow_sink: The edge with the maximum flow. The maximum flow is directed from src to sink.
     :return: A dict keyed by edges.
     """
-    current_dueto_dipole_at_maxflow = current_dueto_dipole_at_edge_vector(Gr, src_node=maxflow_sink, sink_node=maxflow_src,
-                                                                   current_magnitude=1)
-    conversion_factor = steady_flows_vec * Gr.edge_weight(maxflow_src, maxflow_sink) / Gr.weight_arr ** 2
-    return convert_list_to_edge_keyed_dict(Gr, current_dueto_dipole_at_maxflow*conversion_factor)
+    current_dueto_dipole_at_maxflow = current_dueto_dipole_at_edge_vector(
+        Gr, src_node=maxflow_sink, sink_node=maxflow_src, current_magnitude=1
+    )
+    conversion_factor = (
+        steady_flows_vec
+        * Gr.edge_weight(maxflow_src, maxflow_sink)
+        / Gr.weight_arr**2
+    )
+    return convert_list_to_edge_keyed_dict(
+        Gr, current_dueto_dipole_at_maxflow * conversion_factor
+    )
 
 
 def convert_list_to_edge_keyed_dict(Gr: AugmentedGraph, vec: Iterable):
@@ -135,13 +160,20 @@ def convert_list_to_edge_keyed_dict(Gr: AugmentedGraph, vec: Iterable):
         assumed to be Gr.
     :return: A dict keysed by edges, the values being the elments of vec.
     """
-    return {e:vec[Gr.edges2idx[e]] for e in Gr.edges_ordered()}
+    return {e: vec[Gr.edges2idx[e]] for e in Gr.edges_ordered()}
 
-def convert_node_keyed_dict_to_arr(Gr:AugmentedGraph, d: Dict):
+
+def convert_node_keyed_dict_to_arr(Gr: AugmentedGraph, d: Dict):
     return np.array([d[node] for node in Gr.nodes_ordered()])
 
 
-def evaluate_rerouting_heuristic_classifier(G:nx.Graph, Gr:AugmentedGraph, I:Dict, dists: Dict=None, thres=0):
+def convert_arr_to_node_keyed_dict(Gr: AugmentedGraph, arr: np.array):
+    return {node: arr[idx] for idx, node in enumerate(Gr.nodes_ordered())}
+
+
+def evaluate_rerouting_heuristic_classifier(
+    G: nx.Graph, Gr: AugmentedGraph, I: Dict, dists: Dict = None, thres=0, is_lattice=False
+):
     """
     Given a linear flow network, specified in terms of a graph G and an input vector I, computes how well the rerouting
     classifier works for predicting Braessian edges.
@@ -170,42 +202,52 @@ def evaluate_rerouting_heuristic_classifier(G:nx.Graph, Gr:AugmentedGraph, I:Dic
         maxflow_sink, maxflow_src = maxflow_edge
 
     # now compute how the maxflow changes when each edge is infinitesimally strengthened
-    susceptibilities_at_maxflow = maxflow_change_on_each_edge_strengthening(Gr, stflows_vec, maxflow_src,
-                                                                            maxflow_sink)
+    susceptibilities_at_maxflow = maxflow_change_on_each_edge_strengthening(
+        Gr, stflows_vec, maxflow_src, maxflow_sink
+    )
     # Now compute flow alignments
-    alignments_with_maxflow = flow_alignment_with_edge(G, Gr, maxflow_edge, stflows_dict)
+    alignments_with_maxflow = flow_alignment_with_edge(
+        G, Gr, maxflow_edge, stflows_dict, is_lattice=is_lattice
+    )
     aligned, notaligned, cant_say, bridges = alignments_with_maxflow
 
-    edge_dist = lambda e1,e2:min(dists[e1[0]][e2[0]], dists[e1[0]][e2[1]], dists[e1[1]][e2[0]], dists[e1[1]][e2[1]])
+    edge_dist = lambda e1, e2: min(
+        dists[e1[0]][e2[0]],
+        dists[e1[0]][e2[1]],
+        dists[e1[1]][e2[0]],
+        dists[e1[1]][e2[1]],
+    )
     return_dict = dict()
     for e in Gr.edges_arr:
         if e == maxflow_edge:
             continue
         inner_dict = dict()
-        inner_dict['edge_idx'] = Gr.edges2idx[e]
+        inner_dict["edge_idx"] = Gr.edges2idx[e]
         if e in aligned:
-            inner_dict['aligned'] = True
+            inner_dict["aligned"] = True
         elif e in notaligned:
-            inner_dict['aligned'] = False
+            inner_dict["aligned"] = False
         elif e in bridges:
-            inner_dict['aligned'] = 'bridge'
+            inner_dict["aligned"] = "bridge"
         else:
             assert e in cant_say
-            inner_dict['aligned'] = 'cant_say'
-        inner_dict['susc'] = susceptibilities_at_maxflow[e]
-        inner_dict['dist'] = edge_dist(e, maxflow_edge)
+            inner_dict["aligned"] = "cant_say"
+        inner_dict["susc"] = susceptibilities_at_maxflow[e]
+        inner_dict["dist"] = edge_dist(e, maxflow_edge)
         susc = susceptibilities_at_maxflow[e]
         if abs(susc) < thres:
-            inner_dict['braessian'] = None
+            inner_dict["braessian"] = None
         elif susc > 0:
-            inner_dict['braessian'] = True
+            inner_dict["braessian"] = True
         else:
-            inner_dict['braessian'] = False
+            inner_dict["braessian"] = False
         return_dict[e] = inner_dict
     return return_dict
 
 
-def flow_alignment_with_edge(G:nx.Graph, Gr:AugmentedGraph, edge: Tuple[object, object], flows:Dict):
+def flow_alignment_with_edge(
+    G: nx.Graph, Gr: AugmentedGraph, edge: Tuple[object, object], flows: Dict, is_lattice=False
+):
     """
     Given a graph, steady state flows, and a chosen edge; computes which edges are aligned by flow rerouting
     to the chosen edge.
@@ -224,67 +266,106 @@ def flow_alignment_with_edge(G:nx.Graph, Gr:AugmentedGraph, edge: Tuple[object, 
         notaligned_edges = set()
         cant_say = {e for e in G.edges() if e != edge}
         raise ValueError("Maxflow edge is a bridge")
-#        return aligned_edges, notaligned_edges, cant_say
+    #        return aligned_edges, notaligned_edges, cant_say
 
     aligned_edges = set()
     nonaligned_edges = set()
     cant_say = set()
     bridges = set()
 
-    for e in Gr.edges_arr:
+    for e in tqdm.tqdm(Gr.edges_arr):
         if set(e) == set(edge):
             continue
 
-        alignment = is_edge_aligned_rerouting_heuristic(G, edge, e, flows)
-        if alignment == 'aligned':
+        alignment = is_edge_aligned_rerouting_heuristic(G, edge, e, flows, is_lattice=is_lattice)
+        if alignment == "aligned":
             aligned_edges.add(e)
-        elif alignment == 'not aligned':
+        elif alignment == "not aligned":
             nonaligned_edges.add(e)
-        elif alignment == 'bridge':
+        elif alignment == "bridge":
             bridges.add(e)
         else:
-            assert alignment == 'cant_say'
+            assert alignment == "cant_say"
             cant_say.add(e)
     return aligned_edges, nonaligned_edges, cant_say, bridges
 
 
-def is_edge_aligned_rerouting_heuristic(G, edge, e, flows):
+def is_edge_aligned_rerouting_heuristic(G, edge, e, flows, is_lattice=False):
     """
     Computes if e is aligned by flow rerouting to edge.
 
-    For description of the arguments, see the docstring of flow_alignment_with_edge.:wa
+    For description of the arguments, see the docstring of flow_alignment_with_edge.
 
     """
     if flows[edge] > 0:
-        h_target,t_target = edge
+        h_target, t_target = edge
     else:
-        t_target,h_target = edge
+        t_target, h_target = edge
 
     if is_bridge(G, e):
-        return 'bridge'
+        return "bridge"
 
     h, t = e
     # first, determine head and tail
-    if flows[(h,t)] < 0:
+    if flows[(h, t)] < 0:
         t, h = h, t
     # now, compute if aligned
+    if is_lattice:
+        return _is_aligned_rerouting_heuristic_lattice(G, h_target, h, t, t_target)
+    else:
+        return _is_aligned_rerouting_heuristic(G, h_target, h, t, t_target)
+
+
+def _is_aligned_rerouting_heuristic(G, h_target, h, t, t_target):
     try:
-        shortest_h_target_h_t_t_target_path = shortest_rerouting_path(G, h_target, h, t, t_target)
+        shortest_h_target_h_t_t_target_path = shortest_rerouting_path(
+            G, h_target, h, t, t_target
+        )
         nal_path_length = len(shortest_h_target_h_t_t_target_path)
     except nx.NetworkXNoPath:
         nal_path_length = np.inf
     try:
-        shortest_h_target_t_h_t_target_path = shortest_rerouting_path(G, h_target, t, h, t_target)
-        al_path_length = len(shortest_h_target_t_h_t_target_path )
+        shortest_h_target_t_h_t_target_path = shortest_rerouting_path(
+            G, h_target, t, h, t_target
+        )
+        al_path_length = len(shortest_h_target_t_h_t_target_path)
     except nx.NetworkXNoPath:
         al_path_length = np.inf
 
     if nal_path_length < al_path_length:
-        return 'not aligned'
+        return "not aligned"
     elif al_path_length < nal_path_length:
-        return 'aligned'
+        return "aligned"
     else:
-        return 'cant_say'
+        return "cant_say"
+
+
+def _is_aligned_rerouting_heuristic_lattice(G, h_target, h, t, t_target):
+    shortest_cycle = shortest_cycle_in_lattice(G, h, t, h_target, t_target)
+    len_ = len(shortest_cycle)
+    H = nx.DiGraph()
+    H.add_edges_from((shortest_cycle[i], shortest_cycle[(i+1)%len_]) for i in range(len_))
+
+    if H.has_edge(h, t) == H.has_edge(h_target, t_target):
+        return "aligned"
+    else:
+        return "not aligned"
+
+
+def shortest_cycle_in_lattice(G, a, b, c, d):
+    coords_arr = np.array([list(n) for n in [a, b, c, d]])
+    xmin, xmax = coords_arr[:, 0].min(), coords_arr[:, 0].max()
+    ymin, ymax = coords_arr[:, 1].min(), coords_arr[:, 1].max()
+
+    shortest_loop = (
+        [(xmin, i) for i in range(ymin, ymax)]
+        + [(i, ymax) for i in range(xmin, xmax)]
+        + [(xmax, i) for i in range(ymax, ymin, -1)]
+        + [(i, ymin) for i in range(xmax, xmin, -1)]
+    )
+    assert len(shortest_loop) == 2*(xmax-xmin) + 2*(ymax-ymin)
+    return shortest_loop
+
 
 
 def shortest_rerouting_path(G, a, b, c, d):
@@ -295,9 +376,9 @@ def shortest_rerouting_path(G, a, b, c, d):
     If no such path can be found, raises nx.NetworkXNoPath
     """
     H = G.copy()
-    H.remove_edge(a,d)
-    H.remove_edge(b,c)
-    dist_c_d = nx.shortest_path_length(H,c,d)
+    H.remove_edge(a, d)
+    H.remove_edge(b, c)
+    dist_c_d = nx.shortest_path_length(H, c, d)
 
     shortest_path_length = np.inf
 
@@ -305,12 +386,13 @@ def shortest_rerouting_path(G, a, b, c, d):
         if c in path or d in path:
             continue
         # so a (a,b,c,d) path may exist. check:
-        K = H.copy()
-        K.remove_edges_from(zip(path[:-1], path[1:]))
-        K.remove_nodes_from(path[1:-1])
+        edges_to_remove = list(zip(path[:-1], path[1:]))
+        nodes_to_remove = path[1:-1]
+        H.remove_edges_from(edges_to_remove)
+        H.remove_nodes_from(nodes_to_remove)
 
         try:
-            otherpath = nx.shortest_path(K, c, d)
+            otherpath = nx.shortest_path(H, c, d)
             new_shortest_path_length = len(path) + len(otherpath) + 1
             if new_shortest_path_length < shortest_path_length:
                 shortest_path_length = new_shortest_path_length
@@ -319,10 +401,13 @@ def shortest_rerouting_path(G, a, b, c, d):
                 break
         except nx.NetworkXNoPath:
             pass
+        H.add_nodes_from(nodes_to_remove)
+        H.add_edges_from(edges_to_remove)
     if shortest_path_length < np.inf:
         return shortest_path
     else:
         raise nx.NetworkXNoPath
+
 
 def shortest_rerouting_path_old(G, a, b, c, d):
     """
@@ -332,7 +417,7 @@ def shortest_rerouting_path_old(G, a, b, c, d):
     If no such path can be found, raises nx.NetworkXNoPath
     """
     H = G.copy()
-    H.remove_edge(a,d)
+    H.remove_edge(a, d)
 
     shortest_path_length = np.inf
 
@@ -350,7 +435,7 @@ def shortest_rerouting_path_old(G, a, b, c, d):
                         new_shortest_path_length = len(path) + len(otherpath) + 1
                         if new_shortest_path_length < shortest_path_length:
                             shortest_path_length = new_shortest_path_length
-                            shortest_path = path+otherpath
+                            shortest_path = path + otherpath
 
             except nx.NetworkXNoPath:
                 pass
@@ -366,7 +451,10 @@ def is_bridge(G, e):
     Returns if e is a bridge. Assumes G is connected.
     """
     assert nx.is_connected(G)
-    H = G.copy()
-    H.remove_edge(*e)
+    G.remove_edge(*e)
 
-    return not nx.is_connected(H)
+    res = not nx.is_connected(G)
+
+    G.add_edge(*e)
+    return res
+
