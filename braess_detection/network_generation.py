@@ -3,6 +3,11 @@ import numpy as np
 from . import voronoigraph as vg
 from . import braess_tools as bt
 
+import sys
+sys.path.insert(0, "../../../random-powergrid")
+import rpgm_algo
+
+
 def assign_random_sources_and_sinks(Gr:bt.AugmentedGraph, frac:float=0.25):
     num_nodes = len(Gr.nodes_arr)
     num_srcs = num_sinks = num_nodes // 4
@@ -48,6 +53,13 @@ def generate_random_voronoi_graph_with_random_inputs(num_points=20, src_frac=0.2
 
 def generate_ieee300_network_with_random_inputs(src_frac=0.25):
     G = nx.read_gpickle('../../data/ieee300/ieee300_unweighted_graph.gpkl')
+    Gr = bt.AugmentedGraph(G)
+    # randomly choose sources and sinks
+    I_dict = assign_random_sources_and_sinks(Gr, frac=src_frac)
+    return G, Gr, I_dict
+
+def generate_random_powergrid_network_with_random_inputs(num_nodes, src_frac=0.25):
+    G = rpgm_algo.main(n=num_nodes).to_networkx()
     Gr = bt.AugmentedGraph(G)
     # randomly choose sources and sinks
     I_dict = assign_random_sources_and_sinks(Gr, frac=src_frac)

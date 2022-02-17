@@ -206,7 +206,7 @@ def evaluate_rerouting_heuristic_classifier(
         Gr, stflows_vec, maxflow_src, maxflow_sink
     )
     # Now compute flow alignments
-    alignments_with_maxflow = flow_alignment_with_edge(
+    alignments_with_maxflow = flow_alignment_with_edge_ancient(
         G, Gr, maxflow_edge, stflows_dict, is_lattice=is_lattice
     )
     aligned, notaligned, cant_say, bridges = alignments_with_maxflow
@@ -255,7 +255,7 @@ def flow_alignment_with_edge(
     :param G: A graph
     :param Gr: AugmentedGraph of G
     :param edge: The chosen edge. Must be in G, and Gr.edges_arr.
-    :param flows: A dict with keys of teh form (u,v) (must be in Gr.edges_arr) and values being floats. Specifies the
+    :param flows: A dict with keys of the form (u,v) (must be in Gr.edges_arr) and values being floats. Specifies the
         flow from u to v.
     :return:
         aligned, notaligned, cant_say: Three mutually disjoint subsets of Gr.edges_arr.
@@ -288,6 +288,77 @@ def flow_alignment_with_edge(
             assert alignment == "cant_say"
             cant_say.add(e)
     return aligned_edges, nonaligned_edges, cant_say, bridges
+
+def flow_alignment_with_edge_ancient(
+    G: nx.Graph, Gr: AugmentedGraph, edge: Tuple[object, object], flows: Dict, is_lattice=False
+):
+    if is_bridge(G, edge):
+        # don't bother with any calculation.
+        aligned_edges = set()
+        notaligned_edges = set()
+        cant_say = {e for e in G.edges() if e != edge}
+        raise ValueError("Maxflow edge is a bridge")
+
+    if flows[edge] > 0:
+        h_target,t_target = edge
+    else:
+        t_target,h_target = edge
+
+
+    H = G.copy()
+    H.remove_edge(*edge)
+
+
+    aligned_edges = set()
+    nonaligned_edges = set()
+    cant_say = set()
+    bridges = set()
+
+    for e in tqdm.tqdm(G.edges()):
+        if is_bridge(G, e):
+            bridges.add(e)
+
+        if set(e) == set(edge):
+            continue
+        K = H.copy()
+        K.remove_edge(*e)
+        h, t = e
+        # first, determine head and tail
+        if flows[(h,t)] < 0:
+            t, h = h, t
+        # now, compute if aligned
+        is_al = False
+        is_nal = False
+
+        max_pathlen = np.inf
+
+        all_spaths_containing = (path for path in nx.simple_paths.all_simple_paths(H,
+                                    h_target, t_target,cutoff=max_pathlen) if {h,t}.issubset(set(path)))
+        pathlens = [len(path) for path in nx.simple_paths.all_simple_paths(H,
+                                    h_target, t_target, cutoff=max_pathlen) if {h,t}.issubset(set(path))]
+#        if len(pathlens) == 0:
+#            cant_say.add(e)
+#            continue
+        minlen = min(pathlens)
+        shortest_rerouting_paths = [path for path in all_spaths_containing if
+                                    len(path) == minlen]
+
+        for path in shortest_rerouting_paths:
+            if path.index(h) == path.index(t)-1:
+                is_nal = True
+            elif path.index(h) == path.index(t)+1:
+                is_al = True
+            else:
+                raise ValueError("h,t not adjacent in rerouting path")
+
+        if is_al and not(is_nal):
+            aligned_edges.add(e)
+        elif is_nal and not(is_al):
+            nonaligned_edges.add(e)
+        else:
+            cant_say.add(e)
+    return aligned_edges, nonaligned_edges, cant_say, bridges
+
 
 
 def is_edge_aligned_rerouting_heuristic(G, edge, e, flows, is_lattice=False):
@@ -382,7 +453,7 @@ def shortest_rerouting_path(G, a, b, c, d):
 
     shortest_path_length = np.inf
 
-    for path in nx.all_shortest_paths(H, a, b):
+    for path in list(nx.all_shortest_paths(H, a, b)):
         if c in path or d in path:
             continue
         # so a (a,b,c,d) path may exist. check:
