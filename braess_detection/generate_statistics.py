@@ -17,7 +17,7 @@ def run_n_iterations_for_network(network_type, out_file, num_repeat=10):
     all_dfs = []
 
     with ProcessPoolExecutor() as e:
-        all_dfs = list(tqdm(map(_single_iteration, it.repeat(network_type), range(num_repeat))))
+        all_dfs = list(tqdm(e.map(_single_iteration, it.repeat(network_type), range(num_repeat))))
 
     total_df = pd.concat(all_dfs, ignore_index=True)
     print(f"writing to {out_file}")
@@ -49,7 +49,7 @@ def _single_iteration(network_type, seed):
 
 
 if __name__ == "__main__":
-    num_repeat = 200
+    num_repeat = 100
 #    print("Doing voronoi")
 #    run_n_iterations_for_network(
 #        network_type="voronoi", out_file="../../data/voronoi.csv", num_repeat=num_repeat
