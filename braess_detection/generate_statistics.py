@@ -49,7 +49,7 @@ def _single_iteration(network_type, seed):
 
 
 if __name__ == "__main__":
-    num_repeat = 100
+    num_repeat = 10
 #    print("Doing voronoi")
 #    run_n_iterations_for_network(
 #        network_type="voronoi", out_file="../../data/voronoi.csv", num_repeat=num_repeat

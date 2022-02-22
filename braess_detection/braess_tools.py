@@ -2,7 +2,7 @@ import networkx as nx
 import numpy as np
 from typing import Dict, List, Set, Iterable, Tuple
 import tqdm
-
+from time import time
 
 class AugmentedGraph:
     """
@@ -196,6 +196,7 @@ def evaluate_rerouting_heuristic_classifier(
     maxflow_idx = np.argmax(np.abs(stflows_vec))
     maxflow = stflows_vec[maxflow_idx]
     maxflow_edge = Gr.edges_arr[maxflow_idx]
+    print(f"{maxflow_edge=}")
     if maxflow > 0:
         maxflow_src, maxflow_sink = maxflow_edge
     else:
@@ -206,7 +207,7 @@ def evaluate_rerouting_heuristic_classifier(
         Gr, stflows_vec, maxflow_src, maxflow_sink
     )
     # Now compute flow alignments
-    alignments_with_maxflow = flow_alignment_with_edge_ancient(
+    alignments_with_maxflow = flow_alignment_with_edge(
         G, Gr, maxflow_edge, stflows_dict, is_lattice=is_lattice
     )
     aligned, notaligned, cant_say, bridges = alignments_with_maxflow
@@ -309,65 +310,95 @@ def flow_alignment_with_edge_ancient(
     H.remove_edge(*edge)
 
 
+
     aligned_edges = set()
     nonaligned_edges = set()
     cant_say = set()
     bridges = set()
 
-    for e in tqdm.tqdm(G.edges()):
+    nprocessed = 0
+    to_process = H.number_of_edges()
+    for e in list(H.edges()):
         if is_bridge(G, e):
             bridges.add(e)
+            nprocessed += 1
+            continue
 
         if set(e) == set(edge):
+            nprocessed += 1
             continue
-        H.remove_edge(*e)
         h, t = e
         # first, determine head and tail
-        if flows[(h,t)] < 0:
+        if (h,t) in flows and flows[(h,t)] < 0:
+            t, h = h, t
+        if (t,h) in flows and flows[(t,h)] > 0:
             t, h = h, t
         # now, compute if aligned
 
         nal_path_length = np.inf
         al_path_length = np.inf
 
-        for path in nx.all_shortest_paths(H, h_target, h):
+        nnodes, nedges = H.number_of_nodes(), H.number_of_edges()
+
+        for path in list(nx.all_shortest_paths(H, h_target, h)):
+            assert (H.number_of_nodes(), H.number_of_edges()) == (nnodes, nedges)
             if t not in path:
                 # so a h_target, h, t, t_target path may exist. check:
-                K = H.copy()
-                K.remove_edges_from(zip(path[:-1], path[1:]))
-                K.remove_nodes_from(path[1:-1])
+                edges_to_remove = set(zip(path[:-1], path[1:]))
+                nodes_to_remove = set(path[1:-1])
+                edges_to_remove = edges_to_remove | set(nx.edges(H, nbunch=nodes_to_remove))
+                H.remove_edges_from(edges_to_remove)
+                H.remove_nodes_from(nodes_to_remove)
+
+                #assert H.number_of_edges() == nedges - len(edges_to_remove)
 
                 try:
-                    for otherpath in nx.all_shortest_paths(K, t, t_target):
+                    for otherpath in nx.all_shortest_paths(H, t, t_target):
                         if h not in otherpath:
                             is_nal = True
                             nal_path_length = min(nal_path_length,
                                                   len(path) + len(otherpath) + 1)
                 except nx.NetworkXNoPath:
                     pass
+                finally:
+                    H.add_nodes_from(nodes_to_remove)
+                    H.add_edges_from(edges_to_remove)
+                    assert (H.number_of_nodes(), H.number_of_edges()) == (nnodes, nedges)
 
-        for path in nx.all_shortest_paths(H, h_target, t):
+            #assert (H.number_of_nodes(), H.number_of_edges()) == (nnodes, nedges)
             if h not in path:
                 # so a h_target, t, h, t_target path may exist. check:
-                K = H.copy()
-                K.remove_edges_from(zip(path[:-1], path[1:]))
-                K.remove_nodes_from(path[1:-1])
+                edges_to_remove = set(zip(path[:-1], path[1:]))
+                nodes_to_remove = set(path[1:-1])
+                edges_to_remove = edges_to_remove | set(nx.edges(H, nbunch=nodes_to_remove))
+                H.remove_edges_from(edges_to_remove)
+                H.remove_nodes_from(nodes_to_remove)
+
+                #assert H.number_of_edges() == nedges - len(edges_to_remove)
 
                 try:
-                    for otherpath in nx.all_shortest_paths(K, h, t_target):
+                    for otherpath in nx.all_shortest_paths(H, h, t_target):
                         if t not in otherpath:
                             is_al = True
                             al_path_length = min(al_path_length,
                                                  len(path) + len(otherpath) + 1)
                 except nx.NetworkXNoPath:
                     pass
+                finally:
+                    H.add_nodes_from(nodes_to_remove)
+                    H.add_edges_from(edges_to_remove)
+                    assert (H.number_of_nodes(), H.number_of_edges()) == (nnodes, nedges)
 
+        nprocessed +=1
         if nal_path_length < al_path_length:
             nonaligned_edges.add(e)
         elif al_path_length < nal_path_length:
             aligned_edges.add(e)
         else:
             cant_say.add(e)
+
+        H.add_edge(t, h)
+    print(f"{nprocessed=}, {to_process=}")
 
     return aligned_edges, nonaligned_edges, cant_say, bridges
 
@@ -462,27 +493,36 @@ def shortest_rerouting_path(G, a, b, c, d):
     H.remove_edge(a,d)
     H.remove_edge(b,c)
     dist_c_d = nx.shortest_path_length(H,c,d)
+    dist_a_b = nx.shortest_path_length(H,a,b)
 
     shortest_path_length = np.inf
+    tick = time()
 
-    for path in nx.all_shortest_paths(H, a, b):
+    for path in list(nx.all_simple_paths(H, a, b, cutoff=dist_a_b+10)):
+        tock = time()
+        if tock - tick > 20:
+            break
         if c in path or d in path:
             continue
         # so a (a,b,c,d) path may exist. check:
-        K = H.copy()
-        K.remove_edges_from(zip(path[:-1], path[1:]))
-        K.remove_nodes_from(path[1:-1])
+        nodes_to_remove = set(path[1:-1])
+        edges_to_remove = set(zip(path[:-1], path[1:])) | set(nx.edges(G, nbunch=nodes_to_remove))
+
+        H.remove_edges_from(edges_to_remove)
+        H.remove_nodes_from(nodes_to_remove)
 
         try:
-            otherpath = nx.shortest_path(K, c, d)
+            otherpath = nx.shortest_path(H, c, d)
             new_shortest_path_length = len(path) + len(otherpath) + 1
             if new_shortest_path_length < shortest_path_length:
                 shortest_path_length = new_shortest_path_length
                 shortest_path = path + otherpath
-            if len(otherpath) == dist_c_d:
+            if len(path) + len(otherpath) == dist_c_d+dist_a_b:
                 break
         except nx.NetworkXNoPath:
             pass
+        H.add_nodes_from(nodes_to_remove)
+        H.add_edges_from(edges_to_remove)
     if shortest_path_length < np.inf:
         return shortest_path
     else:
