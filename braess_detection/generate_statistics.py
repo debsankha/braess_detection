@@ -62,18 +62,18 @@ def _single_iteration(network_type, seed):
 
 if __name__ == "__main__":
     num_repeat = 100
-#    print("Doing voronoi")
-#    run_n_iterations_for_network(
-#        network_type="voronoi", out_file="../../data/voronoi.csv", num_repeat=num_repeat
-#    )
-#    print("Doing ieee300")
-#    run_n_iterations_for_network(
-#        network_type="ieee300", out_file="../../data/ieee300.csv", num_repeat=num_repeat
-#    )
-#    print("Doing lattice")
-#    run_n_iterations_for_network(
-#        network_type="lattice", out_file="../../data/lattice.csv", num_repeat=num_repeat
-#    )
+    print("Doing voronoi")
+    run_n_iterations_for_network(
+        network_type="voronoi", out_file="../../data/voronoi.csv", num_repeat=num_repeat
+    )
+    print("Doing ieee300")
+    run_n_iterations_for_network(
+        network_type="ieee300", out_file="../../data/ieee300.csv", num_repeat=num_repeat
+    )
+    print("Doing lattice")
+    run_n_iterations_for_network(
+        network_type="lattice", out_file="../../data/lattice.csv", num_repeat=num_repeat
+    )
     print("Doing random powergrid")
     run_n_iterations_for_network(
         network_type="random_pwgrid", out_file="../../data/random_grid.csv", num_repeat=num_repeat
