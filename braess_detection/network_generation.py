@@ -59,7 +59,7 @@ def generate_ieee300_network_with_random_inputs(src_frac=0.25):
     return G, Gr, I_dict
 
 def generate_random_powergrid_network_with_random_inputs(num_nodes, src_frac=0.25):
-    G = rpgm_algo.main(n=num_nodes).to_networkx()
+    G = rpgm_algo.main(n=num_nodes,n0=num_nodes-1,p=0.5,q=0.5,r=1,s=0.1).to_networkx()
     Gr = bt.AugmentedGraph(G)
     # randomly choose sources and sinks
     I_dict = assign_random_sources_and_sinks(Gr, frac=src_frac)

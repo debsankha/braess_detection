@@ -187,7 +187,10 @@ def evaluate_rerouting_heuristic_classifier(
                                          }
     """
     if dists is None:
-        dists = dict(nx.all_pairs_shortest_path_length(G))
+        if is_lattice:
+            dists = {(x1,y1):{(x2,y2):abs(x1-x2)+abs(y1-y2) for (x2,y2) in G.nodes()} for (x1,y1) in G.nodes()}
+        else:
+            dists = dict(nx.all_pairs_shortest_path_length(G))
 
     # compute the steady flows
     stflows_vec = steady_flows_vector(Gr, I)
@@ -196,12 +199,12 @@ def evaluate_rerouting_heuristic_classifier(
     maxflow_idx = np.argmax(np.abs(stflows_vec))
     maxflow = stflows_vec[maxflow_idx]
     maxflow_edge = Gr.edges_arr[maxflow_idx]
-    print(f"{maxflow_edge=}")
     if maxflow > 0:
         maxflow_src, maxflow_sink = maxflow_edge
     else:
         maxflow_sink, maxflow_src = maxflow_edge
 
+    print(f"{maxflow_edge=}")
     # now compute how the maxflow changes when each edge is infinitesimally strengthened
     susceptibilities_at_maxflow = maxflow_change_on_each_edge_strengthening(
         Gr, stflows_vec, maxflow_src, maxflow_sink
@@ -416,7 +419,7 @@ def is_edge_aligned_rerouting_heuristic(G, edge, e, flows, is_lattice=False):
     else:
         t_target, h_target = edge
 
-    if is_bridge(G, e):
+    if (not is_lattice) and is_bridge(G, e):
         return "bridge"
 
     h, t = e
@@ -498,14 +501,13 @@ def shortest_rerouting_path(G, a, b, c, d):
     shortest_path_length = np.inf
     tick = time()
 
-    for path in list(nx.all_simple_paths(H, a, b, cutoff=dist_a_b+10)):
-        tock = time()
-        if tock - tick > 20:
-            break
+    all_simple_paths = []
+    for path in list(nx.all_shortest_paths(H, a, b)):
         if c in path or d in path:
             continue
         # so a (a,b,c,d) path may exist. check:
         nodes_to_remove = set(path[1:-1])
+        #nodes_to_remove = set(path)
         edges_to_remove = set(zip(path[:-1], path[1:])) | set(nx.edges(G, nbunch=nodes_to_remove))
 
         H.remove_edges_from(edges_to_remove)
@@ -513,6 +515,30 @@ def shortest_rerouting_path(G, a, b, c, d):
 
         try:
             otherpath = nx.shortest_path(H, c, d)
+            new_shortest_path_length = len(path) + len(otherpath) + 1
+            if new_shortest_path_length < shortest_path_length:
+                shortest_path_length = new_shortest_path_length
+                shortest_path = path + otherpath
+            if len(path) + len(otherpath) == dist_c_d+dist_a_b:
+                break
+        except nx.NetworkXNoPath:
+            pass
+        H.add_nodes_from(nodes_to_remove)
+        H.add_edges_from(edges_to_remove)
+
+    for path in list(nx.all_shortest_paths(H, d, c)):
+        if b in path or a in path:
+            continue
+        # so a (a,b,c,d) path may exist. check:
+        nodes_to_remove = set(path[1:-1])
+        #nodes_to_remove = set(path)
+        edges_to_remove = set(zip(path[:-1], path[1:])) | set(nx.edges(G, nbunch=nodes_to_remove))
+
+        H.remove_edges_from(edges_to_remove)
+        H.remove_nodes_from(nodes_to_remove)
+
+        try:
+            otherpath = nx.shortest_path(H, b, a)
             new_shortest_path_length = len(path) + len(otherpath) + 1
             if new_shortest_path_length < shortest_path_length:
                 shortest_path_length = new_shortest_path_length
