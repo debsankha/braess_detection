@@ -1,0 +1,10 @@
+networkx==2.0
+numpy
+pandas
+seaborn
+flownetpy
+pytest
+jupyterlab
+jupyterlab_vim
+tqdm
+loky
