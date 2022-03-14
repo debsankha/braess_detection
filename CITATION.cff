@@ -1,0 +1,12 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Topological predictor for Braess Paradox
+message: Please cite this software using these metadata.
+type: software
+authors:
+  - given-names: Debsankha
+    family-names: Manik
+    email: dmanik@debsankha.net
+    affiliation: Technische Universität Dresden
