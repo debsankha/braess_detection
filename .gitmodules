@@ -1,0 +1,3 @@
+[submodule "SyntheticNetworks-python"]
+	path = SyntheticNetworks-python
+	url = https://github.com/PIK-ICoNe/SyntheticNetworks-python.git
