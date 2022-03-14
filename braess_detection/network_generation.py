@@ -1,10 +1,11 @@
 import networkx as nx
 import numpy as np
-from . import voronoigraph as vg
-from . import braess_tools as bt
+from braess_detection import voronoigraph as vg
+from braess_detection import braess_tools as bt
+from igraph import Graph
 
 import sys
-sys.path.insert(0, "../../../random-powergrid")
+sys.path.insert(0, "../SyntheticNetworks-python")
 import rpgm_algo
 
 
@@ -59,7 +60,23 @@ def generate_ieee300_network_with_random_inputs(src_frac=0.25):
     return G, Gr, I_dict
 
 def generate_random_powergrid_network_with_random_inputs(num_nodes, src_frac=0.25):
-    G = rpgm_algo.main(n=num_nodes,n0=num_nodes-1,p=0.5,q=0.5,r=1,s=0.1).to_networkx()
+    # initialise algorithm
+    g = rpgm_algo.RpgAlgorithm()
+    # for detailed output set 
+    g.debug = False
+
+    # set desired parameters and perform algorithm
+    g.set_params(n=num_nodes,n0=num_nodes-1,p=0.5,q=0.5,r=1,s=0.1)
+    g.initialise()
+    g.grow()
+
+    # create igraph object
+    G = Graph(g.added_nodes)
+    G.add_edges(sorted(set([g._s(key) for key in g.adjacency.keys()])))
+    G.vs["lat"] = g.lat
+    G.vs["lon"] = g.lon
+
+    G = G.to_networkx()
     Gr = bt.AugmentedGraph(G)
     # randomly choose sources and sinks
     I_dict = assign_random_sources_and_sinks(Gr, frac=src_frac)
