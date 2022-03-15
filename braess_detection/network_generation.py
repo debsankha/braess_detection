@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 from braess_detection import voronoigraph as vg
+from braess_detection import ieee300
 from braess_detection import braess_tools as bt
 from igraph import Graph
 
@@ -53,7 +54,7 @@ def generate_random_voronoi_graph_with_random_inputs(num_points=20, src_frac=0.2
     return G, Gr, I_dict
 
 def generate_ieee300_network_with_random_inputs(src_frac=0.25):
-    G = nx.read_gpickle('../../data/ieee300/ieee300_unweighted_graph.gpkl')
+    G = ieee300.fetch_ieee300()
     Gr = bt.AugmentedGraph(G)
     # randomly choose sources and sinks
     I_dict = assign_random_sources_and_sinks(Gr, frac=src_frac)
@@ -62,7 +63,7 @@ def generate_ieee300_network_with_random_inputs(src_frac=0.25):
 def generate_random_powergrid_network_with_random_inputs(num_nodes, src_frac=0.25):
     # initialise algorithm
     g = rpgm_algo.RpgAlgorithm()
-    # for detailed output set 
+    # for detailed output set
     g.debug = False
 
     # set desired parameters and perform algorithm
