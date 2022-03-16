@@ -4,9 +4,11 @@ from braess_detection import voronoigraph as vg
 from braess_detection import ieee300
 from braess_detection import braess_tools as bt
 from igraph import Graph
+import pathlib
 
 import sys
-sys.path.insert(0, "../SyntheticNetworks-python")
+random_pwgrid_module_path = str(pathlib.Path(__file__).parent.parent.resolve() / "SyntheticNetworks-python")
+sys.path.insert(0, random_pwgrid_module_path)
 import rpgm_algo
 
 
